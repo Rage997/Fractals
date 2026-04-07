@@ -30,6 +30,15 @@ export const fractals: FractalInfo[] = [
     description: 'The Burning Ship fractal is a variant of the Mandelbrot set, discovered by David Ayers in 1991. It resembles a burning ship when visualized, hence its name.',
     howItWorks: 'Similar to the Mandelbrot set, we iterate: z(n+1) = z(n)² + c. However, before squaring z, we take the absolute values of its real and imaginary parts. This creates the distinctive "burning ship" appearance with towering columns.',
     formula: 'z = (|Re(z)| + i|Im(z)|)² + c'
+  },
+  {
+    id: 'newton',
+    name: 'Newton Fractal',
+    subtitle: 'Root-Finding Fractal',
+    icon: '✴',
+    description: 'The Newton fractal visualizes the basins of attraction of a function\'s roots using Newton\'s method. It was popularized by mathematician John Hubbard and produces intricate, colorful patterns.',
+    howItWorks: 'Starting from each point z, we iteratively apply Newton\'s method: z = z - f(z)/f\'(z). Different starting points converge to different roots, and the boundaries between basins form the fractal. Here we use z³ - 1 = 0, which has three roots at the vertices of an equilateral triangle.',
+    formula: 'z = z - f(z)/f\'(z)\nwhere f(z) = z³ - 1'
   }
 ];
 

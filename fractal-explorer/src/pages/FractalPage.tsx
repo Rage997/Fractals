@@ -4,11 +4,13 @@ import { getFractal } from '../data/fractals';
 import { Fern } from './fractals/Fern';
 import { Mandelbrot } from './fractals/Mandelbrot';
 import { BurningShip } from './fractals/BurningShip';
+import { Newton } from './fractals/Newton';
 
 const fractalComponents: Record<string, (props: { showInfo: boolean; onToggleInfo: () => void }) => ReactNode> = {
   fern: Fern,
   mandelbrot: Mandelbrot,
   burningship: BurningShip,
+  newton: Newton,
 };
 
 export function FractalPage() {

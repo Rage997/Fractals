@@ -39,6 +39,15 @@ export const fractals: FractalInfo[] = [
     description: 'The Newton fractal visualizes the basins of attraction of a function\'s roots using Newton\'s method. It was popularized by mathematician John Hubbard and produces intricate, colorful patterns.',
     howItWorks: 'Starting from each point z, we iteratively apply Newton\'s method: z = z - f(z)/f\'(z). Different starting points converge to different roots, and the boundaries between basins form the fractal. Here we use z³ - 1 = 0, which has three roots at the vertices of an equilateral triangle.',
     formula: 'z = z - f(z)/f\'(z)\nwhere f(z) = z³ - 1'
+  },
+  {
+    id: 'lyapunov',
+    name: 'Lyapunov',
+    subtitle: 'Chaos Fractal',
+    icon: '🌀',
+    description: 'The Lyapunov fractal visualizes the stability of chaotic systems. Named after mathematician Alexander Lyapunov, these fractals reveal the boundary between order and chaos in the logistic map with varying parameters.',
+    howItWorks: 'For each point (a, b) in parameter space, we iterate the logistic map with alternating parameters: x(n+1) = r*x(n)*(1-x(n)), where r alternates between a and b. We compute the Lyapunov exponent to determine stability. Negative values (blue) indicate stable behavior, positive values (yellow/red) indicate chaos.',
+    formula: 'x = r*x*(1-x)\nλ = (1/n)*Σ log|r - 2rx|\nλ < 0: stable, λ > 0: chaos'
   }
 ];
 

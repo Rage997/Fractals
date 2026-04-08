@@ -1,28 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { BackButton } from '../../components/Layout';
 import { InfoPanel } from '../../components/InfoPanel';
 import { fractals } from '../../data/fractals';
 import type { FractalComponentProps } from '../../types/fractal';
 import './Fern.css';
-
-const P = {
-  maxPoints: 800000,
-  speed: 3,
-  ramp: 1.06,
-  variantIdx: 0,
-  twist: 0.02,
-  stemBias: 0.01,
-  spread: 1.0,
-  mutation: 0.0,
-  ptSize: 0.022,
-  opacity: 0.88,
-  palette: 'green',
-  colorShift: 0.0,
-  spinSpeed: 0.18,
-  camHeight: 5.0,
-  fov: 60,
-};
 
 const SPEED_INIT = [100, 300, 700, 2000, 5000];
 const SPEED_MAX = [500, 2000, 6000, 15000, 40000];
@@ -54,12 +36,32 @@ interface Transform {
   p: number;
 }
 
-export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [showPanel, setShowPanel] = useState(false);
-  const [spinning, setSpinning] = useState(true);
+interface FernParams {
+  variantIdx: number;
+  palette: string;
+  spinSpeed: number;
+  spinning: boolean;
+}
 
-  const fractal = fractals.find(f => f.id === 'fern')!;
+function FernCanvas({ variantIdx, palette, spinSpeed, spinning }: FernParams) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const P = useMemo(() => ({
+    maxPoints: 800000,
+    speed: 3,
+    ramp: 1.06,
+    variantIdx,
+    twist: 0.02,
+    stemBias: 0.01,
+    spread: 1.0,
+    mutation: 0.0,
+    ptSize: 0.022,
+    opacity: 0.88,
+    palette,
+    colorShift: 0.0,
+    camHeight: 5.0,
+    fov: 60,
+  }), [variantIdx, palette]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -77,8 +79,8 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
 
     let isDragging = false;
     const prevMouse = { x: 0, y: 0 };
-    let sph = { theta: 0, phi: Math.PI / 2.5, r: 18 };
-    let tgt = { ...sph };
+    let autoTheta = 0;
+    const tgt = { theta: 0, phi: Math.PI / 2.5, r: 18 };
 
     const onMouseDown = (e: MouseEvent) => { isDragging = true; prevMouse.x = e.clientX; prevMouse.y = e.clientY; };
     const onMouseUp = () => isDragging = false;
@@ -98,7 +100,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
     window.addEventListener('mousemove', onMouseMove);
     renderer.domElement.addEventListener('wheel', onWheel);
 
-    function buildTransforms(): Transform[] {
+    const buildTransforms = (): Transform[] => {
       const base = BASE_VARIANTS[P.variantIdx];
       const stemP = P.stemBias;
       const rest = 1.0 - stemP;
@@ -128,9 +130,9 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
 
         return { m, t, p };
       });
-    }
+    };
 
-    function ptColor(y: number, z: number): [number, number, number] {
+    const ptColor = (y: number, z: number): [number, number, number] => {
       const ht = Math.max(0, Math.min(1, y / 10));
       const dt = Math.max(0, Math.min(1, (z + 2) / 4));
       const cs = P.colorShift;
@@ -144,13 +146,14 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
           return [0.30 + ht*0.65, 0.05 + ht*0.35 + cs*0.1, 0.00 + ht*0.05 + dt*0.08];
         case 'aurora':
           return [0.05 + ht*0.20 + Math.sin(ht*6.28+cs)*0.15, 0.25 + ht*0.45 + Math.cos(ht*4.0+cs)*0.15, 0.20 + ht*0.50 + Math.sin(ht*5.0+cs)*0.15];
-        case 'mono':
+        case 'mono': {
           const v = 0.05 + ht*0.75 + dt*0.1 + cs*0.1;
           return [v, v, v];
+        }
         default:
           return [0.04 + ht*0.15, 0.18 + ht*0.65, 0.02 + ht*0.08];
       }
-    }
+    };
 
     const MAX_ALLOC = 1500000;
     const allPositions = new Float32Array(MAX_ALLOC * 3);
@@ -163,9 +166,9 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
     let building = false;
     let ifsState: { x: number; y: number; z: number; tfs: Transform[]; cp: number[] } | null = null;
 
-    function cumProb(tfs: Transform[]): number[] { let s = 0; return tfs.map(t => (s += t.p, s)); }
+    const cumProb = (tfs: Transform[]): number[] => { let s = 0; return tfs.map(t => (s += t.p, s)); };
 
-    function applyTransform(state: typeof ifsState) {
+    const applyTransform = (state: typeof ifsState) => {
       if (!state) return;
       const r = Math.random();
       const ti = state.cp.findIndex(v => r < v);
@@ -174,7 +177,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
       state.x = m[0]*x + m[1]*y + m[2]*z + t[0];
       state.y = m[3]*x + m[4]*y + m[5]*z + t[1];
       state.z = m[6]*x + m[7]*y + m[8]*z + t[2];
-    }
+    };
 
     const startBuild = () => {
       if (cloud) { 
@@ -215,7 +218,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
       scene.add(cloud);
     };
 
-    function tickBuild() {
+    const tickBuild = () => {
       if (!building || !geo || !ifsState || filled >= P.maxPoints) { building = false; return; }
 
       const n = Math.min(Math.round(batchSz), P.maxPoints - filled);
@@ -240,7 +243,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
       filled += n;
       geo.setDrawRange(0, filled);
       batchSz = Math.min(batchSz * P.ramp, SPEED_MAX[P.speed - 1]);
-    }
+    };
 
     const fogPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(40, 40),
@@ -251,16 +254,16 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
     scene.add(fogPlane);
 
     const clock = new THREE.Clock();
-    let autoTheta = 0;
+    const sph = { theta: 0, phi: Math.PI / 2.5, r: 18 };
 
-    function animate() {
+    const animate = () => {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
       tickBuild();
 
       if (spinning && !isDragging) {
-        autoTheta += dt * P.spinSpeed;
+        autoTheta += dt * spinSpeed;
         tgt.theta = autoTheta;
       } else if (isDragging) {
         autoTheta = tgt.theta;
@@ -279,7 +282,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
       camera.lookAt(0, P.camHeight - 1, 0);
 
       renderer.render(scene, camera);
-    }
+    };
 
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -300,14 +303,31 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
       renderer.dispose();
       containerRef.current?.removeChild(renderer.domElement);
     };
-  }, [spinning]);
+  }, [variantIdx, palette, spinSpeed, spinning]);
+
+  return <div ref={containerRef} className="fern-canvas" />;
+}
+
+export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
+  const [showPanel, setShowPanel] = useState(false);
+  const [spinning, setSpinning] = useState(true);
+  const [variantIdx, setVariantIdx] = useState(0);
+  const [palette, setPalette] = useState('green');
+  const [spinSpeed, setSpinSpeed] = useState(0.18);
+
+  const fractal = fractals.find(f => f.id === 'fern')!;
 
   return (
     <div className="fern-page">
       <div className="vignette" />
       <BackButton to="/" />
       
-      <div ref={containerRef} className="fern-canvas" />
+      <FernCanvas 
+        variantIdx={variantIdx}
+        palette={palette}
+        spinSpeed={spinSpeed}
+        spinning={spinning}
+      />
       
       <button className="info-toggle" onClick={onToggleInfo}>i</button>
       <InfoPanel fractal={fractal} isOpen={showInfo} onClose={onToggleInfo} />
@@ -323,7 +343,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
           <div className="param-header">
             <span className="param-name">Variant</span>
           </div>
-          <select onChange={(e) => { P.variantIdx = parseInt(e.target.value); }}>
+          <select value={variantIdx} onChange={(e) => setVariantIdx(parseInt(e.target.value))}>
             <option value="0">Classic Twist</option>
             <option value="1">Spiral Fern</option>
             <option value="2">Canopy</option>
@@ -335,7 +355,7 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
           <div className="param-header">
             <span className="param-name">Color Palette</span>
           </div>
-          <select onChange={(e) => { P.palette = e.target.value; }}>
+          <select value={palette} onChange={(e) => setPalette(e.target.value)}>
             <option value="green">Forest Green</option>
             <option value="teal">Deep Teal</option>
             <option value="fire">Ember Fire</option>
@@ -348,15 +368,15 @@ export function Fern({ showInfo, onToggleInfo }: FractalComponentProps) {
         <div className="param">
           <div className="param-header">
             <span className="param-name">Spin Speed</span>
-            <span className="param-value">{P.spinSpeed.toFixed(2)}</span>
+            <span className="param-value">{spinSpeed.toFixed(2)}</span>
           </div>
-          <input type="range" min="0" max="0.8" step="0.01" value={P.spinSpeed} 
-            onChange={(e) => { P.spinSpeed = parseFloat(e.target.value); }} />
+          <input type="range" min="0" max="0.8" step="0.01" value={spinSpeed} 
+            onChange={(e) => setSpinSpeed(parseFloat(e.target.value))} />
         </div>
 
         <div className="section-label">Actions</div>
         <div className="btn-row">
-          <button className={spinning ? 'active' : ''} onClick={() => setSpinning(!spinning)}>
+          <button className={spinning ? 'active' : ''} onClick={() => setSpinning(s => !s)}>
             {spinning ? '⟳ Spin' : '⏸ Spin'}
           </button>
         </div>

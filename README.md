@@ -1,4 +1,4 @@
-# Fractals
+# Fractals (WIP)
 
 A simple website to showcase a collection of fractals.
 

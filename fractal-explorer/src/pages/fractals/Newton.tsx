@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { BackButton } from '../../components/Layout';
 import { InfoPanel } from '../../components/InfoPanel';
 import { fractals } from '../../data/fractals';
@@ -20,6 +20,8 @@ const fragmentShaderSource = `
   uniform vec2 u_center;
   uniform float u_zoom;
   uniform int u_maxIterations;
+  uniform float u_colorSpeed;
+  uniform int u_colorScheme;
 
   vec2 cmul(vec2 a, vec2 b) {
     return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -56,20 +58,40 @@ const fragmentShaderSource = `
     }
     
     float angle = atan(z.y, z.x);
-    float radius = length(z);
     
     float t = float(iterations) / float(u_maxIterations);
-    float timeFactor = u_time * 0.3;
+    float timeFactor = u_time * u_colorSpeed;
     
     vec3 col;
     if (t < 0.05) {
       col = vec3(0.0, 0.0, 0.0);
     } else {
-      col = vec3(
-        0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 0.0),
-        0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 2.094),
-        0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 4.189)
-      );
+      if (u_colorScheme == 0) {
+        col = vec3(
+          0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 0.0),
+          0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 2.094),
+          0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 4.189)
+        );
+      } else if (u_colorScheme == 1) {
+        col = vec3(
+          0.5 + 0.5 * cos(angle * 2.0 + timeFactor),
+          0.5 + 0.5 * cos(angle * 3.0 + timeFactor + 2.094),
+          0.5 + 0.5 * cos(angle * 1.0 + timeFactor + 4.189)
+        );
+      } else if (u_colorScheme == 2) {
+        float hue = angle / 6.28318 + timeFactor * 0.1;
+        col = vec3(
+          sin(hue * 6.28318) * 0.5 + 0.5,
+          sin(hue * 6.28318 + 2.094) * 0.5 + 0.5,
+          sin(hue * 6.28318 + 4.189) * 0.5 + 0.5
+        );
+      } else {
+        col = vec3(
+          0.5 + 0.5 * cos(angle + timeFactor),
+          0.5 + 0.5 * cos(angle + timeFactor + 2.094),
+          0.5 + 0.5 * cos(angle + timeFactor + 4.189)
+        ) * 0.3 + vec3(0.1, 0.05, 0.15);
+      }
     }
     
     gl_FragColor = vec4(col, 1.0);
@@ -78,7 +100,34 @@ const fragmentShaderSource = `
 
 export function Newton({ showInfo, onToggleInfo }: FractalComponentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showPanel, setShowPanel] = useState(false);
+  const [, forceUpdate] = useState(0);
   const fractal = fractals.find(f => f.id === 'newton')!;
+  
+  const paramsRef = useRef({
+    colorScheme: 0,
+    colorSpeed: 0.3,
+    maxIterations: 100,
+  });
+
+  const colorScheme = paramsRef.current.colorScheme;
+  const colorSpeed = paramsRef.current.colorSpeed;
+  const maxIterations = paramsRef.current.maxIterations;
+
+  const setColorScheme = useCallback((val: number) => {
+    paramsRef.current.colorScheme = val;
+    forceUpdate(n => n + 1);
+  }, []);
+
+  const setColorSpeed = useCallback((val: number) => {
+    paramsRef.current.colorSpeed = val;
+    forceUpdate(n => n + 1);
+  }, []);
+
+  const setMaxIterations = useCallback((val: number) => {
+    paramsRef.current.maxIterations = val;
+    forceUpdate(n => n + 1);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -139,11 +188,12 @@ export function Newton({ showInfo, onToggleInfo }: FractalComponentProps) {
     const centerLocation = glContext.getUniformLocation(program, 'u_center');
     const zoomLocation = glContext.getUniformLocation(program, 'u_zoom');
     const maxIterationsLocation = glContext.getUniformLocation(program, 'u_maxIterations');
+    const colorSpeedLocation = glContext.getUniformLocation(program, 'u_colorSpeed');
+    const colorSchemeLocation = glContext.getUniformLocation(program, 'u_colorScheme');
 
     let centerX = 0.0;
     let centerY = 0.0;
     let zoom = 1.0;
-    const maxIterations = 100;
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -206,7 +256,9 @@ export function Newton({ showInfo, onToggleInfo }: FractalComponentProps) {
       glEl.uniform1f(timeLocation, time);
       glEl.uniform2f(centerLocation, centerX, centerY);
       glEl.uniform1f(zoomLocation, zoom);
-      glEl.uniform1i(maxIterationsLocation, maxIterations);
+      glEl.uniform1i(maxIterationsLocation, paramsRef.current.maxIterations);
+      glEl.uniform1f(colorSpeedLocation, paramsRef.current.colorSpeed);
+      glEl.uniform1i(colorSchemeLocation, paramsRef.current.colorScheme);
 
       glEl.drawArrays(glEl.TRIANGLES, 0, 6);
 
@@ -232,6 +284,45 @@ export function Newton({ showInfo, onToggleInfo }: FractalComponentProps) {
       <BackButton to="/" />
       <button className="info-toggle" onClick={onToggleInfo}>i</button>
       <InfoPanel fractal={fractal} isOpen={showInfo} onClose={onToggleInfo} />
+
+      <div id="panelTab" onClick={() => setShowPanel(!showPanel)}>PARAMETERS</div>
+
+      <div id="panel" className={showPanel ? 'open' : ''}>
+        <div className="panel-title">Newton Fractal</div>
+        <div className="panel-sub">Root-Finding · explorer</div>
+
+        <div className="section-label">Color</div>
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Scheme</span>
+          </div>
+          <select value={colorScheme} onChange={(e) => setColorScheme(parseInt(e.target.value))}>
+            <option value="0">Triadic</option>
+            <option value="1">Multi-Hue</option>
+            <option value="2">Rainbow</option>
+            <option value="3">Dark</option>
+          </select>
+        </div>
+
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Animation Speed</span>
+            <span className="param-value">{colorSpeed.toFixed(2)}</span>
+          </div>
+          <input type="range" min="0" max="2" step="0.01" value={colorSpeed}
+            onChange={(e) => setColorSpeed(parseFloat(e.target.value))} />
+        </div>
+
+        <div className="section-label">Quality</div>
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Max Iterations</span>
+            <span className="param-value">{maxIterations}</span>
+          </div>
+          <input type="range" min="20" max="300" step="10" value={maxIterations}
+            onChange={(e) => setMaxIterations(parseInt(e.target.value))} />
+        </div>
+      </div>
 
       <div id="hint">drag to pan · scroll to zoom</div>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { BackButton } from '../../components/Layout';
 import { InfoPanel } from '../../components/InfoPanel';
 import { fractals } from '../../data/fractals';
@@ -20,6 +20,8 @@ const fragmentShaderSource = `
   uniform vec2 u_center;
   uniform float u_zoom;
   uniform int u_maxIterations;
+  uniform float u_colorSpeed;
+  uniform int u_colorScheme;
 
   void main() {
     vec2 uv = (gl_FragCoord.xy - u_resolution.xy * 0.5) / min(u_resolution.x, u_resolution.y);
@@ -44,22 +46,67 @@ const fragmentShaderSource = `
       float nu = log(log_zn / log(2.0)) / log(2.0);
       float t = float(iterations) + 1.0 - nu;
       
-      float timeFactor = u_time * 0.3;
-      vec3 col = vec3(
-        sin(t * 0.789 + timeFactor),
-        cos(t * 0.678 - timeFactor),
-        sin(t * 0.543 + timeFactor * 0.7)
-      );
-      col = (col + 1.0) * 0.5;
+      float timeFactor = u_time * u_colorSpeed;
+      vec3 col;
       
-      gl_FragColor = vec4(col, 1.0);
+      if (u_colorScheme == 0) {
+        col = vec3(
+          sin(t * 0.789 + timeFactor),
+          cos(t * 0.678 - timeFactor),
+          sin(t * 0.543 + timeFactor * 0.7)
+        );
+      } else if (u_colorScheme == 1) {
+        col = vec3(
+          sin(t * 0.5 + timeFactor),
+          cos(t * 0.5 + timeFactor),
+          sin(t * 0.5 - timeFactor)
+        );
+      } else if (u_colorScheme == 2) {
+        col = vec3(
+          sin(t * 1.2 + timeFactor) * 0.5 + 0.5,
+          sin(t * 1.5 + timeFactor + 2.094) * 0.5 + 0.5,
+          sin(t * 0.8 + timeFactor + 4.189) * 0.5 + 0.5
+        );
+      } else {
+        float gray = sin(t * 0.3 + timeFactor) * 0.5 + 0.5;
+        col = vec3(gray * 0.3, gray * 0.5, gray);
+      }
+      
+      gl_FragColor = vec4((col + 1.0) * 0.5, 1.0);
     }
   }
 `;
 
 export function BurningShip({ showInfo, onToggleInfo }: FractalComponentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showPanel, setShowPanel] = useState(false);
+  const [, forceUpdate] = useState(0);
   const fractal = fractals.find(f => f.id === 'burningship')!;
+  
+  const paramsRef = useRef({
+    colorScheme: 0,
+    colorSpeed: 0.3,
+    maxIterations: 100,
+  });
+
+  const colorScheme = paramsRef.current.colorScheme;
+  const colorSpeed = paramsRef.current.colorSpeed;
+  const maxIterations = paramsRef.current.maxIterations;
+
+  const setColorScheme = useCallback((val: number) => {
+    paramsRef.current.colorScheme = val;
+    forceUpdate(n => n + 1);
+  }, []);
+
+  const setColorSpeed = useCallback((val: number) => {
+    paramsRef.current.colorSpeed = val;
+    forceUpdate(n => n + 1);
+  }, []);
+
+  const setMaxIterations = useCallback((val: number) => {
+    paramsRef.current.maxIterations = val;
+    forceUpdate(n => n + 1);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -120,11 +167,12 @@ export function BurningShip({ showInfo, onToggleInfo }: FractalComponentProps) {
     const centerLocation = glContext.getUniformLocation(program, 'u_center');
     const zoomLocation = glContext.getUniformLocation(program, 'u_zoom');
     const maxIterationsLocation = glContext.getUniformLocation(program, 'u_maxIterations');
+    const colorSpeedLocation = glContext.getUniformLocation(program, 'u_colorSpeed');
+    const colorSchemeLocation = glContext.getUniformLocation(program, 'u_colorScheme');
 
     let centerX = -1.76;
     let centerY = -0.03;
     let zoom = 1.0;
-    const maxIterations = 100;
     let isDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
@@ -187,7 +235,9 @@ export function BurningShip({ showInfo, onToggleInfo }: FractalComponentProps) {
       glEl.uniform1f(timeLocation, time);
       glEl.uniform2f(centerLocation, centerX, centerY);
       glEl.uniform1f(zoomLocation, zoom);
-      glEl.uniform1i(maxIterationsLocation, maxIterations);
+      glEl.uniform1i(maxIterationsLocation, paramsRef.current.maxIterations);
+      glEl.uniform1f(colorSpeedLocation, paramsRef.current.colorSpeed);
+      glEl.uniform1i(colorSchemeLocation, paramsRef.current.colorScheme);
 
       glEl.drawArrays(glEl.TRIANGLES, 0, 6);
 
@@ -213,6 +263,45 @@ export function BurningShip({ showInfo, onToggleInfo }: FractalComponentProps) {
       <BackButton to="/" />
       <button className="info-toggle" onClick={onToggleInfo}>i</button>
       <InfoPanel fractal={fractal} isOpen={showInfo} onClose={onToggleInfo} />
+
+      <div id="panelTab" onClick={() => setShowPanel(!showPanel)}>PARAMETERS</div>
+
+      <div id="panel" className={showPanel ? 'open' : ''}>
+        <div className="panel-title">Burning Ship</div>
+        <div className="panel-sub">Complex Plane · explorer</div>
+
+        <div className="section-label">Color</div>
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Scheme</span>
+          </div>
+          <select value={colorScheme} onChange={(e) => setColorScheme(parseInt(e.target.value))}>
+            <option value="0">Spectrum</option>
+            <option value="1">Rainbow</option>
+            <option value="2">Pastel</option>
+            <option value="3">Monochrome</option>
+          </select>
+        </div>
+
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Animation Speed</span>
+            <span className="param-value">{colorSpeed.toFixed(2)}</span>
+          </div>
+          <input type="range" min="0" max="2" step="0.01" value={colorSpeed}
+            onChange={(e) => setColorSpeed(parseFloat(e.target.value))} />
+        </div>
+
+        <div className="section-label">Quality</div>
+        <div className="param">
+          <div className="param-header">
+            <span className="param-name">Max Iterations</span>
+            <span className="param-value">{maxIterations}</span>
+          </div>
+          <input type="range" min="20" max="500" step="10" value={maxIterations}
+            onChange={(e) => setMaxIterations(parseInt(e.target.value))} />
+        </div>
+      </div>
 
       <div id="hint">drag to pan · scroll to zoom</div>
     </div>
